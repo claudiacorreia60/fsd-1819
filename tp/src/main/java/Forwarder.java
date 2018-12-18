@@ -77,6 +77,7 @@ public class Forwarder {
                 - ir atualizando o map putRequests
                 - sempre que faz uma atualização vê se já responderam todos os
                   participantes e, se sim, envia a resposta ao cliente
+                NOTA: Ver que a classe Stub (que usa sendAndReceive)
              */
 
             // Update putRequests Map and reply to client
@@ -99,6 +100,7 @@ public class Forwarder {
                 - ir atualizando o map getRequests
                 - sempre que faz uma atualização vê se já responderam todos os
                   participantes e, se sim, envia a resposta ao cliente
+                NOTA: Ver que a classe Stub (que usa sendAndReceive)
              */
 
             // Update getRequests Map and reply to client
