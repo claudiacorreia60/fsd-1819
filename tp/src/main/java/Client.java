@@ -1,11 +1,14 @@
 public class Client {
 
-    //CompletableFuture<Boolean> put(Map<Long, byte[]> values){
+    public static void main(String[] args) throws Exception {
+        Stub client = new Stub();
 
-    //}
+        Map<Long,byte[]> values = new HashMap();
+        // Adicionar valores ao map
+        Collection<Long> keys = new Collection();
+        // Adicionar valores à collection
 
-    //CompletableFuture<Map<Long, byte[]>> get(Collection<Long> keys){
-
-    //}
-
+        CompletableFuture<Boolean> result_put = client.put(values)
+        CompletableFuture<Map<Long,byte[]>> result_get = client.get(keys)
+    }
 }
