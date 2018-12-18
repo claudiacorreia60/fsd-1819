@@ -21,8 +21,11 @@ public class Forwarder {
     private Map<Integer, GetRequest> getRequests;
 
 
-    public Forwarder(Serializer s, ManagedMessagingService ms, ScheduledExecutorService es, Address managerAddr) {
-        this.s = s;
+    public Forwarder(ManagedMessagingService ms, ScheduledExecutorService es, Address managerAddr) {
+        this.s = Serializer.builder()
+                    .withTypes(
+                        Msg.class)
+                    .build();
         this.ms = ms;
         this.es = es;
         this.managerAddr = managerAddr;
