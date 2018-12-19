@@ -2,10 +2,7 @@ import io.atomix.cluster.messaging.ManagedMessagingService;
 import io.atomix.utils.net.Address;
 import io.atomix.utils.serializer.Serializer;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -48,37 +45,43 @@ public class Forwarder {
             Msg msg = s.decode(m);
 
             // Handle client get request
-            getHandler((Collection<Long>) msg.getData(), o);
-        }, this.es);
+            CompletableFuture<byte[]> cf = getHandler((Collection<Long>) msg.getData(), o);
+
+            return cf;
+        });
 
         // Receive client put request
         ms.registerHandler("Client-put", (o, m) -> {
             Msg msg = s.decode(m);
 
             // Handle client put request
+            CompletableFuture<byte[]> cf = null;
             try {
-                putHandler((Map<Long, byte[]>) msg.getData(), o);
+                cf = putHandler((Map<Long, byte[]>) msg.getData(), o);
             } catch (ExecutionException e) {
                 e.printStackTrace();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
 
-        }, this.es);
+            return cf;
+        });
 
 
         /* -----  SERVER -> FORWARDER ----- */
 
+        // Receive get response from server
+        ms.registerHandler("Server-get", (o, m) -> {
+            Msg msg = this.s.decode(m);
+            AbstractMap.SimpleEntry<Integer, Map<Long, byte[]>> data = (AbstractMap.SimpleEntry<Integer, Map<Long, byte[]>>) msg.getData();
+
+            // Update getRequests Map and reply to client
+            handleGetResponse(data.getKey(), data.getValue(), o);
+        }, this.es);
+
         // Receive server 2PC affirmative reply
         ms.registerHandler("Server-true", (o, m) -> {
             Msg msg = this.s.decode(m);
-
-            /* TODO: handlePutResponse
-                - ir atualizando o map putRequests
-                - sempre que faz uma atualização vê se já responderam todos os
-                  participantes e, se sim, envia a resposta ao cliente
-                NOTA: Ver que a classe Stub (que usa sendAndReceive)
-             */
 
             // Update putRequests Map and reply to client
             handlePutResponse((Integer) msg.getData(), true, o);
@@ -89,26 +92,11 @@ public class Forwarder {
             Msg msg = this.s.decode(m);
 
             // Update transactions Map and reply to client
-            handlePutResponse((Integer) msg.getData(), true, o);
-        }, this.es);
-
-        // Receive get response from server
-        ms.registerHandler("Server-get", (o, m) -> {
-            Msg msg = this.s.decode(m);
-
-            /* TODO: handleGetResponse
-                - ir atualizando o map getRequests
-                - sempre que faz uma atualização vê se já responderam todos os
-                  participantes e, se sim, envia a resposta ao cliente
-                NOTA: Ver que a classe Stub (que usa sendAndReceive)
-             */
-
-            // Update getRequests Map and reply to client
-            handleGetResponse((Map<Long, byte[]>) msg.getData(), o);
+            handlePutResponse((Integer) msg.getData(), false, o);
         }, this.es);
     }
 
-    private void getHandler(Collection<Long> requestedKeys, Address client) {
+    private CompletableFuture<byte[]> getHandler(Collection<Long> requestedKeys, Address client) {
         // Get participant servers
         Map<Address, Collection<Long>> participantServers = new HashMap<>();
 
@@ -132,9 +120,8 @@ public class Forwarder {
 
         // Inform participant servers of the get request
         for(Map.Entry<Address, Collection<Long>> participant : participantServers.entrySet()){
-            Map<Integer, Collection<Long>> data = new HashMap<>();
-            data.put(this.getRequestId, participant.getValue());
-            Msg msg = new Msg(participant.getValue());
+            AbstractMap.SimpleEntry<Integer, Collection<Long>> data = new AbstractMap.SimpleEntry<>(this.getRequestId, participant.getValue());
+            Msg msg = new Msg(data);
             this.ms.sendAsync(participant.getKey(), "Forwarder-get", this.s.encode(msg));
         }
 
@@ -143,10 +130,15 @@ public class Forwarder {
         for(Address a : participantServers.keySet()){
             participants.put(a, null);
         }
-        GetRequest gr = new GetRequest(this.getRequestId, participants, client);
+
+        CompletableFuture<byte[]> cf = new CompletableFuture<>();
+        GetRequest gr = new GetRequest(this.getRequestId, participants, cf);
         getRequests.put(this.getRequestId, gr);
 
+        // Increment get requests ID
         this.getRequestId ++;
+
+        return cf;
     }
 
     private int beginTransaction(Map<Address, Map<Long, byte[]>> participantServers) throws ExecutionException, InterruptedException {
@@ -157,16 +149,15 @@ public class Forwarder {
 
         // Inform participant servers of the transaction
         for(Map.Entry<Address, Map<Long, byte[]>> participant : participantServers.entrySet()){
-            Map<Integer, Map<Long, byte[]>> data = new HashMap<>();
-            data.put(transactionId, participant.getValue());
-            msg = new Msg(participant.getValue());
+            AbstractMap.SimpleEntry<Integer, Map<Long, byte[]>> data = new AbstractMap.SimpleEntry<>(transactionId, participant.getValue());
+            msg = new Msg(data);
             this.ms.sendAsync(participant.getKey(), "Forwarder-put", this.s.encode(msg));
         }
 
         return transactionId;
     }
 
-    private void putHandler(Map<Long, byte[]> requestedPairs, Address client) throws ExecutionException, InterruptedException {
+    private CompletableFuture<byte[]> putHandler(Map<Long, byte[]> requestedPairs, Address client) throws ExecutionException, InterruptedException {
         // Get participant servers
         Map<Address, Map<Long, byte[]>> participantServers = new HashMap<>();
 
@@ -196,7 +187,89 @@ public class Forwarder {
         for(Address a : participantServers.keySet()){
             participants.put(a, 0);
         }
-        PutRequest pr = new PutRequest(putId, participants, client);
+
+        CompletableFuture<byte[]> cf = new CompletableFuture<>();
+        PutRequest pr = new PutRequest(putId, participants, cf);
+        putRequests.put(putId, pr);
+
+        return cf;
+    }
+
+    private void handleGetResponse(Integer getId, Map<Long, byte[]> serverReply, Address client) {
+        GetRequest gr = getRequests.get(getId);
+        Map<Address, Map<Long, byte[]>> participants = gr.getParticipants();
+
+        // Server replied affirmatively to the put request
+        participants.put(client, serverReply);
+
+        // Count how many servers already replied to the request
+        Map<Long, byte[]> replies = new HashMap<>();
+        int count = 0;
+        for(Address a : participants.keySet()){
+            // Store responses in replies list
+            Map<Long, byte[]> reply = participants.get(a);
+            if(reply != null) {
+                replies.putAll(reply);
+                count ++;
+            }
+        }
+
+        // Check if all servers replied to the request
+        if(count == participants.size()){
+
+            // Reply to the client
+            CompletableFuture<byte[]> cf = gr.getCf();
+            Msg msg = new Msg(replies);
+            cf.complete(this.s.encode(msg));
+        }
+
+        // Update putRequests Map
+        gr.setParticipants(participants);
+        getRequests.put(getId, gr);
+    }
+
+    private void handlePutResponse(Integer putId, boolean serverReply, Address client) {
+        PutRequest pr = putRequests.get(putId);
+        Map<Address, Integer> participants = pr.getParticipants();
+
+        // Server replied affirmatively to the put request
+        if(serverReply){
+            participants.put(client, 1);
+
+        // Server replied negatively to the put request
+        } else{
+            participants.put(client, 2);
+        }
+
+        // Count how many servers already replied to the request
+        List<Boolean> replies = new ArrayList<>();
+        for(Address a : participants.keySet()){
+            int reply = participants.get(a);
+            // Store responses in replies list
+            if(reply == 1) {
+                replies.add(true);
+            } else if(reply == 2) {
+                replies.add(false);
+            }
+        }
+
+        // Check if all servers replied to the request
+        if(replies.size() == participants.size()){
+            boolean reply = true;
+
+            // Calculate conjuntion of all servers replies
+            for(boolean r : replies){
+                reply = reply && r;
+            }
+
+            // Reply to the client
+            CompletableFuture<byte[]> cf = pr.getCf();
+            Msg msg = new Msg(reply);
+            cf.complete(this.s.encode(msg));
+        }
+
+        // Update putRequests Map
+        pr.setParticipants(participants);
         putRequests.put(putId, pr);
     }
 }

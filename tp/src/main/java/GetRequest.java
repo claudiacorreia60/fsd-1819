@@ -1,11 +1,18 @@
 import io.atomix.utils.net.Address;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 public class GetRequest {
     private int transactionId;
     private Map<Address, Map<Long, byte[]>> participants;
-    private Address client;
+    private CompletableFuture<byte[]> cf;
+
+    public GetRequest(int transactionId, Map<Address, Map<Long, byte[]>> participants, CompletableFuture<byte[]> cf) {
+        this.transactionId = transactionId;
+        this.participants = participants;
+        this.cf = cf;
+    }
 
     public int getTransactionId() {
         return transactionId;
@@ -23,17 +30,11 @@ public class GetRequest {
         this.participants = participants;
     }
 
-    public Address getClient() {
-        return client;
+    public CompletableFuture<byte[]> getCf() {
+        return cf;
     }
 
-    public void setClient(Address client) {
-        this.client = client;
-    }
-
-    public GetRequest(int transactionId, Map<Address, Map<Long, byte[]>> participants, Address client) {
-        this.transactionId = transactionId;
-        this.participants = participants;
-        this.client = client;
+    public void setCf(CompletableFuture<byte[]> cf) {
+        this.cf = cf;
     }
 }
