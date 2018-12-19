@@ -5,12 +5,12 @@ import io.atomix.utils.serializer.Serializer;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ExecutorService;
 
 public class Forwarder {
     private Serializer s;
     private ManagedMessagingService ms;
-    private ScheduledExecutorService es;
+    private ExecutorService es;
     private Address managerAddr;
     private int getRequestId;
     private Map<Integer, Address> servers;
@@ -18,7 +18,7 @@ public class Forwarder {
     private Map<Integer, GetRequest> getRequests;
 
 
-    public Forwarder(ManagedMessagingService ms, ScheduledExecutorService es, Address managerAddr) {
+    public Forwarder(ManagedMessagingService ms, ExecutorService es, Address managerAddr) {
         this.s = Serializer.builder()
                     .withTypes(
                         Msg.class)

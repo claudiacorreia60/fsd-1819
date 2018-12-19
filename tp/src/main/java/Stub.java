@@ -16,9 +16,9 @@ public class Stub {
     private final Serializer s;
 
 
-    public Stub (String address, int port) throws Exception {
+    public Stub (String myAddress, String address, int port) throws Exception {
         srv = Address.from(address, port);
-        ms = NettyMessagingService.builder().withAddress(Address.from(10000)).build();
+        ms = NettyMessagingService.builder().withAddress(Address.from(myAddress)).build();
         s = Serializer.builder()
                 .withTypes(
                     Msg.class)
