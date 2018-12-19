@@ -7,7 +7,7 @@ import java.util.concurrent.CompletableFuture;
 public class Client {
 
     public static void main(String[] args) throws Exception {
-        Stub client = new Stub(args[0], Integer.parseInt(args[1]));
+        Stub client = new Stub(args[0], args[1],Integer.parseInt(args[2]));
 
         Map<Long, byte[]> values = new HashMap();
         // Adicionar valores ao map
