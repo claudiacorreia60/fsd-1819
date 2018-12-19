@@ -2,13 +2,16 @@ import io.atomix.cluster.messaging.ManagedMessagingService;
 import io.atomix.utils.net.Address;
 import io.atomix.utils.serializer.Serializer;
 
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 
 
 public class Manager {
+    /*
+        TODO: Add instance variables related with the 2PC
+            - Ver guiao 5
+     */
     private Serializer s;
     private ManagedMessagingService ms;
     private ScheduledExecutorService es;
@@ -46,6 +49,8 @@ public class Manager {
         Msg msg = new Msg(this.transactionId);
         this.ms.sendAsync(forwarder, "Manager-context", this.s.encode(msg));
         this.transactionId++;
+
+        // TODO: Handle 2PC
     }
 
 
