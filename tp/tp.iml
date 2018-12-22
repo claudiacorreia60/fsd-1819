@@ -7,9 +7,9 @@
       <sourceFolder url="file://$MODULE_DIR$/src/main/java" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/main/resources" type="java-resource" />
       <sourceFolder url="file://$MODULE_DIR$/src/test/java" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/src/main" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
+    <orderEntry type="library" name="Clover IDEA Plugin" level="application" />
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Maven: io.atomix:atomix-cluster:3.0.5" level="project" />
@@ -39,5 +39,6 @@
     <orderEntry type="library" name="Maven: io.github.classgraph:classgraph:4.0.6" level="project" />
     <orderEntry type="library" name="Maven: org.slf4j:slf4j-simple:1.7.7" level="project" />
     <orderEntry type="library" name="Maven: com.github.spullara.java8:concurrent:0.1-SNAPSHOT" level="project" />
+    <orderEntry type="library" name="Maven: io.atomix:atomix-storage:3.0.5" level="project" />
   </component>
 </module>
