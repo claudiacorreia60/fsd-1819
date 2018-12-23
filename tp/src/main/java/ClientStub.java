@@ -10,15 +10,15 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 
-public class Stub {
+public class ClientStub {
     private final ManagedMessagingService ms;
     private final Address srv;
     private final Serializer s;
 
 
-    public Stub (String myAddress, String address, int port) throws Exception {
-        srv = Address.from(address, port);
-        ms = NettyMessagingService.builder().withAddress(Address.from(myAddress)).build();
+    public ClientStub(String myAddr, String serverAddr, int port) throws Exception {
+        srv = Address.from(serverAddr, port);
+        ms = NettyMessagingService.builder().withAddress(Address.from(myAddr)).build();
         s = Serializer.builder()
                 .withTypes(
                     Msg.class)

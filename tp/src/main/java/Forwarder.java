@@ -6,14 +6,15 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
-public class Forwarder {
+public class Forwarder{
     private Serializer s;
     private ManagedMessagingService ms;
     private ExecutorService es;
     private Address managerAddr;
     private int getRequestId;
-    private Map<Integer, Address> servers;
+    private Map<Long, Address> servers;
     private Map<Integer, PutRequest> putRequests;
     private Map<Integer, GetRequest> getRequests;
 
@@ -21,7 +22,8 @@ public class Forwarder {
     public Forwarder(ManagedMessagingService ms, ExecutorService es, Address managerAddr) {
         this.s = Serializer.builder()
                     .withTypes(
-                        Msg.class)
+                        Msg.class,
+                        AbstractMap.SimpleEntry.class)
                     .build();
         this.ms = ms;
         this.es = es;
@@ -29,10 +31,10 @@ public class Forwarder {
         this.getRequestId = 0;
         this.servers = new HashMap<>();
 
-        this.servers.put(0, Address.from("localhost:1231"));
-        this.servers.put(1, Address.from("localhost:1232"));
-        this.servers.put(2, Address.from("localhost:1233"));
-        this.servers.put(3, Address.from("localhost:1234"));
+        this.servers.put((long) 0, Address.from("localhost:1231"));
+        this.servers.put((long) 1, Address.from("localhost:1232"));
+        this.servers.put((long) 2, Address.from("localhost:1233"));
+        this.servers.put((long) 3, Address.from("localhost:1234"));
 
         this.putRequests = new HashMap<>();
         this.getRequests = new HashMap<>();
@@ -102,7 +104,7 @@ public class Forwarder {
 
         for(Long key : requestedKeys){
             // Calculate server ID
-            int serverId = (int) (key % this.servers.size());
+            long serverId = (key % this.servers.size());
             Address serverAddr = this.servers.get(serverId);
 
             // Update participantServers Map
@@ -118,13 +120,6 @@ public class Forwarder {
             participantServers.put(serverAddr, participantKeys);
         }
 
-        // Inform participant servers of the get request
-        for(Map.Entry<Address, Collection<Long>> participant : participantServers.entrySet()){
-            AbstractMap.SimpleEntry<Integer, Collection<Long>> data = new AbstractMap.SimpleEntry<>(this.getRequestId, participant.getValue());
-            Msg msg = new Msg(data);
-            this.ms.sendAsync(participant.getKey(), "Forwarder-get", this.s.encode(msg));
-        }
-
         // Update getRequests Map
         Map<Address, Map<Long, byte[]>> participants = new HashMap<>();
         for(Address a : participantServers.keySet()){
@@ -135,6 +130,13 @@ public class Forwarder {
         GetRequest gr = new GetRequest(this.getRequestId, participants, cf);
         getRequests.put(this.getRequestId, gr);
 
+        // Inform participant servers of the get request
+        for(Map.Entry<Address, Collection<Long>> participant : participantServers.entrySet()){
+            AbstractMap.SimpleEntry<Integer, Collection<Long>> data = new AbstractMap.SimpleEntry<>(this.getRequestId, participant.getValue());
+            Msg msg = new Msg(data);
+            this.ms.sendAsync(participant.getKey(), "Forwarder-get", this.s.encode(msg));
+        }
+
         // Increment get requests ID
         this.getRequestId ++;
 
@@ -143,9 +145,11 @@ public class Forwarder {
 
     private int beginTransaction(Map<Address, Map<Long, byte[]>> participantServers) throws ExecutionException, InterruptedException {
         // Ask Manager to begin a new transaction
-        Msg msg = new Msg(participantServers.keySet());
+        Msg msg = new Msg(participantServers.keySet().stream()
+                .map(a -> a.toString())
+                .collect(Collectors.toList()));
         CompletableFuture<byte[]> cf = this.ms.sendAndReceive(this.managerAddr, "Forwarder-begin", this.s.encode(msg));
-        int transactionId = this.s.decode(cf.get());
+        int transactionId = (Integer) ((Msg) this.s.decode(cf.get())).getData();
 
         // Inform participant servers of the transaction
         for(Map.Entry<Address, Map<Long, byte[]>> participant : participantServers.entrySet()){
@@ -163,7 +167,7 @@ public class Forwarder {
 
         for(Map.Entry<Long, byte[]> pair : requestedPairs.entrySet()){
             // Calculate server ID
-            int serverId = (int) (pair.getKey() % this.servers.size());
+            long serverId = (pair.getKey() % this.servers.size());
             Address serverAddr = this.servers.get(serverId);
 
             // Update participantServers Map

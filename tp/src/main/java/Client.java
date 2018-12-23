@@ -3,18 +3,39 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 public class Client {
-
     public static void main(String[] args) throws Exception {
-        Stub client = new Stub(args[0], args[1],Integer.parseInt(args[2]));
+        ClientStub client = new ClientStub(args[0], args[1],Integer.parseInt(args[2]));
 
         Map<Long, byte[]> values = new HashMap();
-        // Adicionar valores ao map
-        Collection<Long> keys = new ArrayList();
-        // Adicionar valores à collection
+        // Add values to the Map
+        values.put((long) 1111, "Hello".getBytes());
+        values.put((long) 2, "its".getBytes());
+        values.put((long) 3, "me".getBytes());
 
-        CompletableFuture<Boolean> result_put = client.put(values);
-        CompletableFuture<Map<Long, byte[]>> result_get = client.get(keys);
+
+        Collection<Long> keys = new ArrayList();
+        // Add values to the collection
+        keys.add((long) 1111);
+        keys.add((long) 2);
+        keys.add((long) 3);
+
+
+        CompletableFuture<Void> cf = client.put(values).thenCompose((b) -> {
+            System.out.println(b);
+            try {
+                return client.get(keys).thenCompose((r) -> {
+                    System.out.println(r.keySet().toString());
+                    r.values().forEach(bytes -> System.out.println(new String(bytes)));
+                    return new CompletableFuture<>();
+                });
+            } catch (ExecutionException e) {
+                return new CompletableFuture<>();
+            } catch (InterruptedException e) {
+                return new CompletableFuture<>();
+            }
+        });
     }
 }
