@@ -22,7 +22,6 @@ public class Client {
         keys.add((long) 2);
         keys.add((long) 3);
 
-
         CompletableFuture<Void> cf = client.put(values).thenCompose((b) -> {
             System.out.println(b);
             try {

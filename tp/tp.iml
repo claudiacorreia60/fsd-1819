@@ -40,6 +40,5 @@
     <orderEntry type="library" name="Maven: io.github.classgraph:classgraph:4.0.6" level="project" />
     <orderEntry type="library" name="Maven: org.slf4j:slf4j-simple:1.7.7" level="project" />
     <orderEntry type="library" name="Maven: com.github.spullara.java8:concurrent:0.1-SNAPSHOT" level="project" />
-    <orderEntry type="library" name="Maven: io.atomix:atomix-storage:3.0.5" level="project" />
   </component>
 </module>
