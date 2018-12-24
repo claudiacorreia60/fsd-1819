@@ -13,7 +13,10 @@ public class Log {
 
     public Log(String id) {
         this.s = Serializer.builder()
-                .withTypes(LogEntry.class)
+                .withTypes(
+                        LogEntry.class,
+                        PutRequest.class,
+                        GetRequest.class)
                 .build();
 
         this.j = SegmentedJournal.builder()

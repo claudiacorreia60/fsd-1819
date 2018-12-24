@@ -8,6 +8,8 @@ public class LogEntry {
     public String participant;
     public String forwarderAddr;
     public Map<Long, byte[]> pairs;
+    public PutRequest pr;
+    public GetRequest gr;
 
 
     // Manager - Initialized
@@ -54,5 +56,31 @@ public class LogEntry {
         this.participant = null;
         this.forwarderAddr = null;
         this.pairs = null;
+    }
+
+    // Forwarder - PutRequest
+    public LogEntry(PutRequest pr) {
+        this.pr = pr;
+
+        this.entryType = null;
+        this.transactionId = -1;
+        this.participants = null;
+        this.participant = null;
+        this.forwarderAddr = null;
+        this.pairs = null;
+        this.gr = null;
+    }
+
+    // Forwarder - GetRequest
+    public LogEntry(GetRequest gr) {
+        this.gr = gr;
+
+        this.entryType = null;
+        this.transactionId = -1;
+        this.participants = null;
+        this.participant = null;
+        this.forwarderAddr = null;
+        this.pairs = null;
+        this.pr = null;
     }
 }

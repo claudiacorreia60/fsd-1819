@@ -20,6 +20,7 @@ public class ServerSkeleton {
     private Address managerAddr;
     private Map<Long, byte[]> pairs;
     private Map<Integer, Map.Entry<Address, Map<Long, byte[]>>> pairsVolatile;
+    private String myAddr;
 
     public ServerSkeleton(String myAddr, String managerAddr, boolean forwarder, boolean manager) throws ExecutionException, InterruptedException {
         this.log = new Log(myAddr);
@@ -34,6 +35,7 @@ public class ServerSkeleton {
         this.managerAddr = Address.from(managerAddr);
         this.pairs = new HashMap<>();
         this.pairsVolatile = new HashMap<>();
+        this.myAddr = myAddr;
 
         this.loadLog();
 
@@ -96,7 +98,7 @@ public class ServerSkeleton {
             // Delete Key-Value pairs from volatile DB
             this.pairsVolatile.remove(transactionId);
 
-            // Write Abord to log
+            // Write Abort to log
             LogEntry le = new LogEntry("Abort", transactionId);
             this.log.append(le);
 
@@ -131,7 +133,6 @@ public class ServerSkeleton {
         }, this.es);
 
         // Receive forwarder get request
-        // TODO: Pensar em registar no log os pedidos de get em caso de erro
         this.ms.registerHandler("Forwarder-get", (o, m) -> {
             Msg msg = this.s.decode(m);
             Map.Entry<Integer, Collection<Long>> response = (Map.Entry<Integer, Collection<Long>>) msg.getData();
@@ -153,7 +154,7 @@ public class ServerSkeleton {
 
         // Create Forwarder
         if(forwarder){
-            Forwarder f = new Forwarder(this.ms, this.es, this.managerAddr);
+            Forwarder f = new Forwarder(this.ms, this.es, this.managerAddr, this.myAddr);
         }
 
         // Create Forwarder

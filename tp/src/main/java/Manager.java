@@ -26,7 +26,9 @@ public class Manager {
         this.s = Serializer.builder()
                 .withTypes(
                         Msg.class,
-                        AbstractMap.SimpleEntry.class)
+                        AbstractMap.SimpleEntry.class,
+                        PutRequest.class,
+                        GetRequest.class)
                 .build();
         this.ms = ms;
         this.es = es;
@@ -47,6 +49,28 @@ public class Manager {
             return contextHandler(participants, o);
         });
 
+        // Receive forwarder begin transaction
+        this.ms.registerHandler("Forwarder-isTransactionReady", (o, m) -> {
+            Msg msg = this.s.decode(m);
+
+            // Check if transaction is ready
+            int transactionId = (Integer) msg.getData();
+            Map<Address, Boolean> participants = this.participants.get(transactionId);
+
+            // If transaction was commited answer Forwarder immediately
+            // Otherwise begin disaster recovery
+            if (participants.values().stream().allMatch(b -> b == true)) {
+                Map.Entry<Integer, Boolean> answer = new AbstractMap.SimpleEntry<>(transactionId, true);
+                msg = new Msg(answer);
+               this.ms.sendAsync(o, "Manager-transactionIsReady", this.s.encode(msg));
+            } else {
+                for (Address a : participants.keySet()) {
+                    this.ms.sendAsync(a, "Manager-prepared", m);
+                }
+            }
+
+
+        }, this.es);
 
         /* -----  SERVER -> MANAGER ----- */
 

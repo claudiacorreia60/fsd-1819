@@ -1,4 +1,5 @@
 import io.atomix.cluster.messaging.ManagedMessagingService;
+import io.atomix.storage.journal.SegmentedJournalReader;
 import io.atomix.utils.net.Address;
 import io.atomix.utils.serializer.Serializer;
 
@@ -9,6 +10,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 public class Forwarder{
+    private Log log;
     private Serializer s;
     private ManagedMessagingService ms;
     private ExecutorService es;
@@ -19,11 +21,15 @@ public class Forwarder{
     private Map<Integer, GetRequest> getRequests;
 
 
-    public Forwarder(ManagedMessagingService ms, ExecutorService es, Address managerAddr) {
+    public Forwarder(ManagedMessagingService ms, ExecutorService es, Address managerAddr, String id) {
+        this.log = new Log("forwarder-" + id);
+        this.log.open(0);
         this.s = Serializer.builder()
                     .withTypes(
                         Msg.class,
-                        AbstractMap.SimpleEntry.class)
+                        AbstractMap.SimpleEntry.class,
+                        PutRequest.class,
+                        GetRequest.class)
                     .build();
         this.ms = ms;
         this.es = es;
@@ -39,6 +45,7 @@ public class Forwarder{
         this.putRequests = new HashMap<>();
         this.getRequests = new HashMap<>();
 
+        this.loadLog();
 
         /* -----  CLIENT -> FORWARDER ----- */
 
@@ -96,6 +103,28 @@ public class Forwarder{
             // Update transactions Map and reply to client
             handlePutResponse((Integer) msg.getData(), false, o);
         }, this.es);
+
+        /* -----  MANAGER -> FORWARDER ----- */
+
+        // Receive manager response to the isTransactionReady question
+        ms.registerHandler("Manager-transactionIsReady", (o, m) -> {
+            Msg msg = this.s.decode(m);
+            Map.Entry<Integer, Boolean> answer = (AbstractMap.SimpleEntry<Integer, Boolean>) msg.getData();
+            PutRequest pr = this.putRequests.get(answer.getKey());
+
+            // Reply to client
+            this.ms.sendAsync(Address.from(pr.getClientAddr()), "Put-completed", this.s.encode(msg));
+
+            // Update putRequests Map and save it to log
+            Map<Address, Integer> participants = pr.getParticipants();
+            pr.getParticipants().replaceAll((k, v) -> v = 1);
+            pr.setParticipants(participants);
+            pr.setCompleted(true);
+            putRequests.put(answer.getKey(), pr);
+            LogEntry le = new LogEntry(pr);
+            this.log.append(le);
+
+        }, this.es);
     }
 
     private CompletableFuture<byte[]> getHandler(Collection<Long> requestedKeys, Address client) {
@@ -126,9 +155,11 @@ public class Forwarder{
             participants.put(a, null);
         }
 
-        CompletableFuture<byte[]> cf = new CompletableFuture<>();
-        GetRequest gr = new GetRequest(this.getRequestId, participants, cf);
+        // Add GetRequest to the map and save it to the log
+        GetRequest gr = new GetRequest(this.getRequestId, client.toString(), participants, participantServers);
         getRequests.put(this.getRequestId, gr);
+        LogEntry le = new LogEntry(gr);
+        this.log.append(le);
 
         // Inform participant servers of the get request
         for(Map.Entry<Address, Collection<Long>> participant : participantServers.entrySet()){
@@ -136,6 +167,9 @@ public class Forwarder{
             Msg msg = new Msg(data);
             this.ms.sendAsync(participant.getKey(), "Forwarder-get", this.s.encode(msg));
         }
+
+        Msg msg = new Msg(this.getRequestId);
+        CompletableFuture<byte[]> cf = CompletableFuture.completedFuture(this.s.encode(msg));
 
         // Increment get requests ID
         this.getRequestId ++;
@@ -183,20 +217,23 @@ public class Forwarder{
             participantServers.put(serverAddr, participantPairs);
         }
 
-        // Begin transaction
-        int putId = beginTransaction(participantServers);
-
         // Update putRequests Map
         Map<Address, Integer> participants = new HashMap<>();
         for(Address a : participantServers.keySet()){
             participants.put(a, 0);
         }
 
-        CompletableFuture<byte[]> cf = new CompletableFuture<>();
-        PutRequest pr = new PutRequest(putId, participants, cf);
-        putRequests.put(putId, pr);
+        // Begin transaction
+        int putId = beginTransaction(participantServers);
 
-        return cf;
+        // Add PutRequest to the map and save it to the log
+        PutRequest pr = new PutRequest(putId, client.toString(), participants);
+        putRequests.put(putId, pr);
+        LogEntry le = new LogEntry(pr);
+        this.log.append(le);
+
+        Msg msg = new Msg(putId);
+        return CompletableFuture.completedFuture(this.s.encode(msg));
     }
 
     private void handleGetResponse(Integer getId, Map<Long, byte[]> serverReply, Address client) {
@@ -222,14 +259,17 @@ public class Forwarder{
         if(count == participants.size()){
 
             // Reply to the client
-            CompletableFuture<byte[]> cf = gr.getCf();
-            Msg msg = new Msg(replies);
-            cf.complete(this.s.encode(msg));
+            Map.Entry<Integer, Map<Long, byte[]>> answer = new AbstractMap.SimpleEntry<>(gr.getTransactionId(), replies);
+            Msg msg = new Msg(answer);
+            this.ms.sendAsync(Address.from(gr.getClientAddr()), "Get-completed", this.s.encode(msg));
         }
 
-        // Update putRequests Map
+        // Update putRequests Map and save it to log
         gr.setParticipants(participants);
+        gr.setCompleted(true);
         getRequests.put(getId, gr);
+        LogEntry le = new LogEntry(gr);
+        this.log.append(le);
     }
 
     private void handlePutResponse(Integer putId, boolean serverReply, Address client) {
@@ -261,19 +301,84 @@ public class Forwarder{
         if(replies.size() == participants.size()){
             boolean reply = true;
 
-            // Calculate conjuntion of all servers replies
+            // Calculate conjunction of all servers replies
             for(boolean r : replies){
                 reply = reply && r;
             }
 
             // Reply to the client
-            CompletableFuture<byte[]> cf = pr.getCf();
-            Msg msg = new Msg(reply);
-            cf.complete(this.s.encode(msg));
+            Map.Entry<Integer, Boolean> answer = new AbstractMap.SimpleEntry<>(pr.getTransactionId(), reply);
+            Msg msg = new Msg(answer);
+            this.ms.sendAsync(Address.from(pr.getClientAddr()), "Put-completed", this.s.encode(msg));
         }
 
-        // Update putRequests Map
+        // Update putRequests Map and save it to log
         pr.setParticipants(participants);
+        pr.setCompleted(true);
         putRequests.put(putId, pr);
+        LogEntry le = new LogEntry(pr);
+        this.log.append(le);
+    }
+
+    // Performs certain actions based on the state of a given transaction
+    private void validateLog(HashMap<Integer, PutRequest> prs, HashMap<Integer, GetRequest> grs) {
+
+        // Handle PutRequests that are not completed
+        for(PutRequest pr : prs.values()) {
+            if (! pr.isCompleted()) {
+                Msg msg = new Msg(pr.getTransactionId());
+                this.ms.sendAsync(this.managerAddr, "Forwarder-isTransactionReady", this.s.encode(msg));
+            }
+        }
+
+        // Handle GetRequests that are not completed
+        for(GetRequest gr : grs.values()) {
+
+            if (! gr.isCompleted()) {
+                Map<Address, Map<Long, byte[]>> participants = gr.getParticipants();
+
+                // Count how many servers already replied to the request
+                List<Address> replies = new ArrayList<>();
+                for (Address a : participants.keySet()) {
+
+                    // Store responses in replies list
+                    Map<Long, byte[]> reply = participants.get(a);
+                    if (reply == null) {
+                        replies.add(a);
+                    }
+                }
+
+                // Ask clients for the missing pairs
+                for (Address a : replies) {
+                    Collection<Long> requestedKeys = gr.getRequestedKeys().get(a);
+                    AbstractMap.SimpleEntry<Integer, Collection<Long>> data = new AbstractMap.SimpleEntry<>(gr.getTransactionId(), requestedKeys);
+                    Msg msg = new Msg(data);
+                    this.ms.sendAsync(a, "Forwarder-get", this.s.encode(msg));
+                }
+            }
+        }
+    }
+
+    // Parses the log
+    private void loadLog() {
+        SegmentedJournalReader<Object> r = this.log.read();
+
+        HashMap<Integer, PutRequest> putTransactions = new HashMap<>();
+        HashMap<Integer, GetRequest> getTransactions = new HashMap<>();
+
+        while(r.hasNext()) {
+            LogEntry le = (LogEntry) r.next().entry();
+
+            if (le.pr != null) {
+                putTransactions.put(le.pr.getTransactionId(), le.pr);
+            }
+
+            if (le.gr != null) {
+                getTransactions.put(le.gr.getTransactionId(), le.gr);
+            }
+
+        }
+
+        this.validateLog(putTransactions, getTransactions);
     }
 }
