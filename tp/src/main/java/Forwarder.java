@@ -38,9 +38,11 @@ public class Forwarder{
         this.servers = new HashMap<>();
 
         this.servers.put((long) 0, Address.from("localhost:1231"));
+        /*
         this.servers.put((long) 1, Address.from("localhost:1232"));
         this.servers.put((long) 2, Address.from("localhost:1233"));
         this.servers.put((long) 3, Address.from("localhost:1234"));
+        */
 
         this.putRequests = new HashMap<>();
         this.getRequests = new HashMap<>();

@@ -1,5 +1,4 @@
 import io.atomix.cluster.messaging.ManagedMessagingService;
-import io.atomix.cluster.messaging.impl.NettyMessagingService;
 import io.atomix.storage.journal.SegmentedJournalReader;
 import io.atomix.utils.net.Address;
 import io.atomix.utils.serializer.Serializer;
@@ -8,7 +7,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 
@@ -23,7 +21,7 @@ public class Manager {
     private Log log;
 
 
-    public Manager(Address myAddr) throws ExecutionException, InterruptedException {
+    public Manager(ManagedMessagingService ms, ExecutorService es, Address managerAddr) throws ExecutionException, InterruptedException {
         this.s = Serializer.builder()
                 .withTypes(
                         Msg.class,
@@ -31,8 +29,8 @@ public class Manager {
                         PutRequest.class,
                         GetRequest.class)
                 .build();
-        this.ms = NettyMessagingService.builder().withAddress(myAddr).build();
-        this.es = Executors.newSingleThreadExecutor();
+        this.ms = ms;// NettyMessagingService.builder().withAddress(myAddr).build();
+        this.es = es;//Executors.newSingleThreadExecutor();
         this.transactionId = 0;
         this.participants = new HashMap<>();
         this.transactionsState = new HashMap<>();
@@ -237,6 +235,12 @@ public class Manager {
                 // Abort after 10 seconds
                 t.schedule(abortTask, 10000);
                 this.transactionsTimer.put(e.getKey(), t);
+            }
+            if(e.getValue().equals("Committed")){
+                for(Address a : this.participants.get(e.getKey()).keySet()){
+                    Msg msg = new Msg(e.getKey());
+                    this.ms.sendAsync(a, "Manager-commit",this.s.encode(msg));
+                }
             }
         }
     }
