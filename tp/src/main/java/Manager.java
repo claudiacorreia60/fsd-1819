@@ -1,4 +1,5 @@
 import io.atomix.cluster.messaging.ManagedMessagingService;
+import io.atomix.cluster.messaging.impl.NettyMessagingService;
 import io.atomix.storage.journal.SegmentedJournalReader;
 import io.atomix.utils.net.Address;
 import io.atomix.utils.serializer.Serializer;
@@ -7,22 +8,22 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 
 public class Manager {
-
-    // TODO: Fazer timeout
-
     private Serializer s;
     private ManagedMessagingService ms;
     private ExecutorService es;
     private int transactionId;
     private Map<Integer, Map<Address, Boolean>> participants; // <transaction ID, <participant, reply>>
+    private Map<Integer, Boolean> transactionsState;
+    private Map<Integer, Timer> transactionsTimer;
     private Log log;
 
 
-    public Manager(ManagedMessagingService ms, ExecutorService es) throws ExecutionException, InterruptedException {
+    public Manager(Address myAddr) throws ExecutionException, InterruptedException {
         this.s = Serializer.builder()
                 .withTypes(
                         Msg.class,
@@ -30,11 +31,14 @@ public class Manager {
                         PutRequest.class,
                         GetRequest.class)
                 .build();
-        this.ms = ms;
-        this.es = es;
+        this.ms = NettyMessagingService.builder().withAddress(myAddr).build();
+        this.es = Executors.newSingleThreadExecutor();
         this.transactionId = 0;
         this.participants = new HashMap<>();
+        this.transactionsState = new HashMap<>();
+        this.transactionsTimer = new HashMap<>();
         this.log = new Log("manager");
+        this.loadLog();
 
 
         /* -----  FORWARDER -> MANAGER ----- */
@@ -46,7 +50,7 @@ public class Manager {
             // Handle forwarder begin
             List<Address> data = ((List<String>) msg.getData()).stream().map(s -> Address.from(s)).collect(Collectors.toList());
             Set<Address> participants = new HashSet<>(data);
-            return contextHandler(participants, o);
+            return beginTransactionHandler(participants, o);
         });
 
         // Receive forwarder begin transaction
@@ -95,7 +99,7 @@ public class Manager {
     }
 
 
-    public CompletableFuture<byte[]> contextHandler(Set<Address> participantServers, Address forwarderAddr) {
+    public CompletableFuture<byte[]> beginTransactionHandler(Set<Address> participantServers, Address forwarderAddr) {
         Map<Address, Boolean> participants = new HashMap<>();
 
         // Create participants list
@@ -116,26 +120,53 @@ public class Manager {
         Msg msg = new Msg(this.transactionId);
         this.ms.sendAsync(forwarderAddr, "Manager-context", this.s.encode(msg));
 
+        // Transaction initiated as uncompleted
+        this.transactionsState.put(this.transactionId, false);
+
+        // Start AbortTask for transactions that timed out
+        Timer t = new Timer();
+        TimerTask abortTask = new AbortTask(this.transactionId, this.s, this.ms, this.es, this.participants, this.transactionsState, this.log);
+        // Abort after 10 seconds
+        t.schedule(abortTask, 10000);
+        this.transactionsTimer.put(this.transactionId, t);
+
+        // Increment transaction ID
         this.transactionId++;
-        CompletableFuture<byte[]> cf = new CompletableFuture<>();
-        try {
-            cf.complete(this.s.encode(new Msg(this.transactionId-1)));
-        } catch (Exception e) {
-            cf.completeExceptionally(e);
-        }
+
+        // Complete cf
+        CompletableFuture<byte[]> cf = CompletableFuture.completedFuture(
+                this.s.encode(new Msg(this.transactionId - 1))
+        );
+
         return cf;
     }
 
     public void commit(int transactionId){
-        // Send commit message to participant servers
-        for(Address a : this.participants.get(transactionId).keySet()){
-            Msg msg = new Msg(transactionId);
-            ms.sendAsync(a, "Manager-commit", this.s.encode(msg));
-        }
 
-        // Store committed transaction in log
-        LogEntry le = new LogEntry("Committed", transactionId);
-        this.log.append(le);
+        // Synchronize with AbortTask
+        Boolean isTransactionCompleted = this.transactionsState.get(transactionId);
+
+        synchronized(isTransactionCompleted){
+            if(!isTransactionCompleted) {
+                // Store committed transaction in log
+                LogEntry le = new LogEntry("Committed", transactionId);
+                this.log.append(le);
+
+                // Send commit message to participant servers
+                for (Address a : this.participants.get(transactionId).keySet()) {
+                    Msg msg = new Msg(transactionId);
+                    ms.sendAsync(a, "Manager-commit", this.s.encode(msg));
+                }
+
+                // Set transaction as completed
+                this.transactionsState.put(transactionId, true);
+
+                // Stop and remove abort task
+                this.transactionsTimer.get(transactionId).cancel();
+                this.transactionsTimer.get(transactionId).purge();
+                this.transactionsTimer.remove(transactionId);
+            }
+        }
     }
 
     public void preparedHandler(int transactionId, Address serverAddr) {
@@ -164,15 +195,31 @@ public class Manager {
     }
 
     public void abort(int transactionId){
-        // Send abort message to participant servers
-        for(Address a : this.participants.get(transactionId).keySet()){
-            Msg msg = new Msg(transactionId);
-            ms.sendAsync(a, "Manager-abort", this.s.encode(msg));
-        }
+        
+        // Synchronize with AbortTask
+        Boolean isTransactionCompleted = this.transactionsState.get(transactionId);
 
-        // Store aborted transaction in log
-        LogEntry le = new LogEntry("Aborted", transactionId);
-        this.log.append(le);
+        synchronized(isTransactionCompleted){
+            if(!isTransactionCompleted) {
+                // Send abort message to participant servers
+                for(Address a : this.participants.get(transactionId).keySet()){
+                    Msg msg = new Msg(transactionId);
+                    ms.sendAsync(a, "Manager-abort", this.s.encode(msg));
+                }
+
+                // Store aborted transaction in log
+                LogEntry le = new LogEntry("Aborted", transactionId);
+                this.log.append(le);
+
+                // Set transaction as completed
+                this.transactionsState.put(transactionId, true);
+
+                // Stop and remove abort task
+                this.transactionsTimer.get(transactionId).cancel();
+                this.transactionsTimer.get(transactionId).purge();
+                this.transactionsTimer.remove(transactionId);
+            }
+        }
     }
 
 
@@ -183,6 +230,13 @@ public class Manager {
                     Msg msg = new Msg(e.getKey());
                     this.ms.sendAsync(a, "Manager-prepared",this.s.encode(msg));
                 }
+
+                // Start AbortTask for transactions that timed out
+                Timer t = new Timer();
+                TimerTask abortTask = new AbortTask(e.getKey(), this.s, this.ms, this.es, this.participants, this.transactionsState, this.log);
+                // Abort after 10 seconds
+                t.schedule(abortTask, 10000);
+                this.transactionsTimer.put(e.getKey(), t);
             }
         }
     }

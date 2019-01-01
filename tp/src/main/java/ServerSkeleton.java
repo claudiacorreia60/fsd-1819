@@ -159,7 +159,7 @@ public class ServerSkeleton {
 
         // Create Forwarder
         if(manager){
-            Manager m = new Manager(this.ms, this.es);
+            Manager m = new Manager(this.managerAddr);
         }
 
 
