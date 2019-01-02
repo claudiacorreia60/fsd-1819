@@ -14,14 +14,14 @@ public class Forwarder{
     private Serializer s;
     private ManagedMessagingService ms;
     private ExecutorService es;
-    private Address managerAddr;
-    private int getRequestId;
+    private Address managerAddress;
+    private Integer getRequestId;
     private Map<Long, Address> servers;
     private Map<Integer, PutRequest> putRequests;
     private Map<Integer, GetRequest> getRequests;
 
 
-    public Forwarder(ManagedMessagingService ms, ExecutorService es, Address managerAddr, String id) {
+    public Forwarder(ManagedMessagingService ms, ExecutorService es, Address managerAddress, String id) {
         this.log = new Log("forwarder-" + id);
         this.log.open(0);
         this.s = Serializer.builder()
@@ -33,7 +33,7 @@ public class Forwarder{
                     .build();
         this.ms = ms;
         this.es = es;
-        this.managerAddr = managerAddr;
+        this.managerAddress = managerAddress;
         this.getRequestId = 0;
         this.servers = new HashMap<>();
 
@@ -157,24 +157,28 @@ public class Forwarder{
             participants.put(a, null);
         }
 
-        // Add GetRequest to the map and save it to the log
-        GetRequest gr = new GetRequest(this.getRequestId, client.toString(), participants, participantServers);
-        getRequests.put(this.getRequestId, gr);
-        LogEntry le = new LogEntry(gr);
-        this.log.append(le);
+        CompletableFuture<byte[]> cf = null;
 
-        // Inform participant servers of the get request
-        for(Map.Entry<Address, Collection<Long>> participant : participantServers.entrySet()){
-            AbstractMap.SimpleEntry<Integer, Collection<Long>> data = new AbstractMap.SimpleEntry<>(this.getRequestId, participant.getValue());
-            Msg msg = new Msg(data);
-            this.ms.sendAsync(participant.getKey(), "Forwarder-get", this.s.encode(msg));
+        synchronized(this.getRequestId) {
+            // Add GetRequest to the map and save it to the log
+            GetRequest gr = new GetRequest(this.getRequestId, client.toString(), participants, participantServers);
+            getRequests.put(this.getRequestId, gr);
+            LogEntry le = new LogEntry(gr);
+            this.log.append(le);
+
+            // Inform participant servers of the get request
+            for (Map.Entry<Address, Collection<Long>> participant : participantServers.entrySet()) {
+                AbstractMap.SimpleEntry<Integer, Collection<Long>> data = new AbstractMap.SimpleEntry<>(this.getRequestId, participant.getValue());
+                Msg msg = new Msg(data);
+                this.ms.sendAsync(participant.getKey(), "Forwarder-get", this.s.encode(msg));
+            }
+
+            Msg msg = new Msg(this.getRequestId);
+            cf = CompletableFuture.completedFuture(this.s.encode(msg));
+
+            // Increment get requests ID
+            this.getRequestId++;
         }
-
-        Msg msg = new Msg(this.getRequestId);
-        CompletableFuture<byte[]> cf = CompletableFuture.completedFuture(this.s.encode(msg));
-
-        // Increment get requests ID
-        this.getRequestId ++;
 
         return cf;
     }
@@ -184,7 +188,7 @@ public class Forwarder{
         Msg msg = new Msg(participantServers.keySet().stream()
                 .map(a -> a.toString())
                 .collect(Collectors.toList()));
-        CompletableFuture<byte[]> cf = this.ms.sendAndReceive(this.managerAddr, "Forwarder-begin", this.s.encode(msg));
+        CompletableFuture<byte[]> cf = this.ms.sendAndReceive(this.managerAddress, "Forwarder-begin", this.s.encode(msg));
         int transactionId = (Integer) ((Msg) this.s.decode(cf.get())).getData();
 
         // Inform participant servers of the transaction
@@ -238,7 +242,7 @@ public class Forwarder{
         return CompletableFuture.completedFuture(this.s.encode(msg));
     }
 
-    private void handleGetResponse(Integer getId, Map<Long, byte[]> serverReply, Address client) {
+    private synchronized void handleGetResponse(Integer getId, Map<Long, byte[]> serverReply, Address client) {
         GetRequest gr = getRequests.get(getId);
         Map<Address, Map<Long, byte[]>> participants = gr.getParticipants();
 
@@ -274,7 +278,7 @@ public class Forwarder{
         this.log.append(le);
     }
 
-    private void handlePutResponse(Integer putId, boolean serverReply, Address client) {
+    private synchronized void handlePutResponse(Integer putId, boolean serverReply, Address client) {
         PutRequest pr = putRequests.get(putId);
         Map<Address, Integer> participants = pr.getParticipants();
 
@@ -329,7 +333,7 @@ public class Forwarder{
         for(PutRequest pr : prs.values()) {
             if (! pr.isCompleted()) {
                 Msg msg = new Msg(pr.getTransactionId());
-                this.ms.sendAsync(this.managerAddr, "Forwarder-isTransactionReady", this.s.encode(msg));
+                this.ms.sendAsync(this.managerAddress, "Forwarder-isTransactionReady", this.s.encode(msg));
             }
         }
 

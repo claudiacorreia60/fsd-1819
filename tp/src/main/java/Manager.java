@@ -14,7 +14,7 @@ public class Manager {
     private Serializer s;
     private ManagedMessagingService ms;
     private ExecutorService es;
-    private int transactionId;
+    private Integer transactionId;
     private Map<Integer, Map<Address, Boolean>> participants; // <transaction ID, <participant, reply>>
     private Map<Integer, Boolean> transactionsState;
     private Map<Integer, Timer> transactionsTimer;
@@ -97,7 +97,7 @@ public class Manager {
     }
 
 
-    public CompletableFuture<byte[]> beginTransactionHandler(Set<Address> participantServers, Address forwarderAddr) {
+    public CompletableFuture<byte[]> beginTransactionHandler(Set<Address> participantServers, Address forwardererAddress) {
         Map<Address, Boolean> participants = new HashMap<>();
 
         // Create participants list
@@ -105,36 +105,40 @@ public class Manager {
             participants.put(a, false);
         }
 
-        // Store participant servers in participants Map
-        this.participants.put(this.transactionId, participants);
+        CompletableFuture<byte[]> cf = null;
 
-        // Store Initialized transaction in log
-        LogEntry le = new LogEntry("Initialized", this.transactionId, participantServers.stream()
-                .map(a -> a.toString())
-                .collect(Collectors.toList()));
-        this.log.append(le);
+        synchronized(this.transactionId) {
+            // Store participant servers in participants Map
+            this.participants.put(this.transactionId, participants);
 
-        //Send transaction id to forwarder
-        Msg msg = new Msg(this.transactionId);
-        this.ms.sendAsync(forwarderAddr, "Manager-context", this.s.encode(msg));
+            // Store Initialized transaction in log
+            LogEntry le = new LogEntry("Initialized", this.transactionId, participantServers.stream()
+                    .map(a -> a.toString())
+                    .collect(Collectors.toList()));
+            this.log.append(le);
 
-        // Transaction initiated as uncompleted
-        this.transactionsState.put(this.transactionId, false);
+            //Send transaction id to forwarder
+            Msg msg = new Msg(this.transactionId);
+            this.ms.sendAsync(forwardererAddress, "Manager-context", this.s.encode(msg));
 
-        // Start AbortTask for transactions that timed out
-        Timer t = new Timer();
-        TimerTask abortTask = new AbortTask(this.transactionId, this.s, this.ms, this.es, this.participants, this.transactionsState, this.log);
-        // Abort after 10 seconds
-        t.schedule(abortTask, 10000);
-        this.transactionsTimer.put(this.transactionId, t);
+            // Transaction initiated as uncompleted
+            this.transactionsState.put(this.transactionId, false);
 
-        // Increment transaction ID
-        this.transactionId++;
+            // Start AbortTask for transactions that timed out
+            Timer t = new Timer();
+            TimerTask abortTask = new AbortTask(this.transactionId, this.s, this.ms, this.es, this.participants, this.transactionsState, this.log);
+            // Abort after 10 seconds
+            t.schedule(abortTask, 10000);
+            this.transactionsTimer.put(this.transactionId, t);
 
-        // Complete cf
-        CompletableFuture<byte[]> cf = CompletableFuture.completedFuture(
-                this.s.encode(new Msg(this.transactionId - 1))
-        );
+            // Complete cf
+            cf = CompletableFuture.completedFuture(
+                    this.s.encode(new Msg(this.transactionId))
+            );
+
+            // Increment transaction ID
+            this.transactionId++;
+        }
 
         return cf;
     }
@@ -168,11 +172,15 @@ public class Manager {
     }
 
     public void preparedHandler(int transactionId, Address serverAddr) {
-        Map<Address, Boolean> serverResponses = this.participants.get(transactionId);
+        Map<Address, Boolean> serverResponses =  null;
 
-        // Change server response
-        serverResponses.put(serverAddr, true);
-        this.participants.put(transactionId, serverResponses);
+        synchronized(this.participants){
+            serverResponses = this.participants.get(transactionId);
+
+            // Change server response
+            serverResponses.put(serverAddr, true);
+            this.participants.put(transactionId, serverResponses);
+        }
 
         // Store prepared server in log
         LogEntry le = new LogEntry("Prepared", transactionId, serverAddr.toString());

@@ -20,22 +20,22 @@ public class ServerSkeleton {
     private Address managerAddr;
     private Map<Long, byte[]> pairs;
     private Map<Integer, Map.Entry<Address, Map<Long, byte[]>>> pairsVolatile;
-    private String myAddr;
+    private String myAddress;
 
-    public ServerSkeleton(String myAddr, String managerAddr, boolean forwarder, boolean manager) throws ExecutionException, InterruptedException {
-        this.log = new Log(myAddr);
+    public ServerSkeleton(String myAddress, String managerAddr, boolean forwarder, boolean manager) throws ExecutionException, InterruptedException {
+        this.log = new Log(myAddress);
         this.log.open(0);
         this.s = Serializer.builder()
                 .withTypes(
-                        Msg.class,
-                        AbstractMap.SimpleEntry.class)
+                    Msg.class,
+                    AbstractMap.SimpleEntry.class)
                 .build();
-        this.ms = NettyMessagingService.builder().withAddress(Address.from(myAddr)).build();
+        this.ms = NettyMessagingService.builder().withAddress(Address.from(myAddress)).build();
         this.es = Executors.newSingleThreadExecutor();
         this.managerAddr = Address.from(managerAddr);
         this.pairs = new HashMap<>();
         this.pairsVolatile = new HashMap<>();
-        this.myAddr = myAddr;
+        this.myAddress = myAddress;
 
         this.loadLog();
 
@@ -75,7 +75,9 @@ public class ServerSkeleton {
 
             // Commit Key-Value pairs to DB
             Map.Entry<Address, Map<Long, byte[]>> keysToPut = this.pairsVolatile.get(transactionId);
-            this.pairs.putAll(keysToPut.getValue());
+            synchronized(this.pairs){
+                this.pairs.putAll(keysToPut.getValue());
+            }
             this.pairsVolatile.remove(transactionId);
 
             // Write Commit to log
@@ -154,7 +156,7 @@ public class ServerSkeleton {
 
         // Create Forwarder
         if(forwarder){
-            Forwarder f = new Forwarder(this.ms, this.es, this.managerAddr, this.myAddr);
+            Forwarder f = new Forwarder(this.ms, this.es, this.managerAddr, this.myAddress);
         }
 
         // Create Forwarder
