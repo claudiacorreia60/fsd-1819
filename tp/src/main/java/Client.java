@@ -23,7 +23,8 @@ public class Client {
         keys.add((long) 3);
         keys.add((long) 4);
 
-        CompletableFuture<Void> cf = client.put(values).thenCompose((b) -> {
+        /*
+        client.put(values).thenCompose((b) -> {
             System.out.println(b);
             try {
                 return client.get(keys).thenCompose((r) -> {
@@ -36,6 +37,13 @@ public class Client {
             } catch (InterruptedException e) {
                 return new CompletableFuture<>();
             }
+        });
+        */
+
+        client.get(keys).thenCompose((r) -> {
+            System.out.println(r.keySet().toString());
+            r.values().forEach(bytes -> System.out.println(new String(bytes)));
+            return new CompletableFuture<>();
         });
     }
 }

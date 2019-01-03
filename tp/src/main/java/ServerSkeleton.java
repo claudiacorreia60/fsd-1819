@@ -76,7 +76,9 @@ public class ServerSkeleton {
             // Commit Key-Value pairs to DB
             Map.Entry<Address, Map<Long, byte[]>> keysToPut = this.pairsVolatile.get(transactionId);
             synchronized(this.pairs){
-                this.pairs.putAll(keysToPut.getValue());
+                if (keysToPut != null) {
+                    this.pairs.putAll(keysToPut.getValue());
+                }
             }
             this.pairsVolatile.remove(transactionId);
 
@@ -85,8 +87,10 @@ public class ServerSkeleton {
             this.log.append(le);
 
             // Inform forwarder that the transaction is completed
-            Address forwarderAddr = keysToPut.getKey();
-            this.ms.sendAsync(forwarderAddr, "Server-true", this.s.encode(msg));
+            if (keysToPut != null) {
+                Address forwarderAddr = keysToPut.getKey();
+                this.ms.sendAsync(forwarderAddr, "Server-true", this.s.encode(msg));
+            }
 
         }, this.es);
 
@@ -171,6 +175,7 @@ public class ServerSkeleton {
     private void validateLog(Map<Integer, String> transactions){
         for(Map.Entry<Integer, String> e : transactions.entrySet()) {
            if (e.getValue().equals("Prepared")) {
+               System.out.println("AQUI");
                Msg msg = new Msg(e.getKey());
                this.ms.sendAsync(this.managerAddr, "Server-prepared", this.s.encode(msg));
            }
