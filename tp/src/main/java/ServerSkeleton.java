@@ -198,9 +198,12 @@ public class ServerSkeleton {
             }
             if (le.entryType.equals("Commit")) {
                 transactions.put(transactionId, "Commit");
+                this.pairs.putAll(this.pairsVolatile.get(transactionId).getValue());
+                this.pairsVolatile.remove(transactionId);
             }
             if (le.entryType.equals("Abort")) {
                 transactions.put(transactionId, "Abort");
+                this.pairsVolatile.remove(transactionId);
             }
         }
 
