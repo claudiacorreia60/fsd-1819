@@ -1,20 +1,19 @@
 import io.atomix.utils.net.Address;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 public class PutRequest {
     private int transactionId;
-    private String clientAddr;
+    private String clientAddress;
     private Map<String, Integer> participants; // Integer -> 0-SR, 1-S, 2-N
     private Map<String, Map<Long, byte[]>> keysToPut;
     private boolean completed;
     private boolean sent;
 
-    public PutRequest(int transactionId, String clientAddr, Map<Address, Integer> participants, Map<Address, Map<Long, byte[]>> keysToPut) {
+    public PutRequest(int transactionId, String clientAddress, Map<Address, Integer> participants, Map<Address, Map<Long, byte[]>> keysToPut) {
         this.transactionId = transactionId;
-        this.clientAddr = clientAddr;
+        this.clientAddress = clientAddress;
         this.participants = participants.entrySet().stream()
                 .collect(Collectors.toMap(
                         e -> e.getKey().toString(),
@@ -38,11 +37,11 @@ public class PutRequest {
     }
 
     public String getClientAddr() {
-        return clientAddr;
+        return clientAddress;
     }
 
-    public void setClientAddr(String clientAddr) {
-        this.clientAddr = clientAddr;
+    public void setClientAddr(String clientAddress) {
+        this.clientAddress = clientAddress;
     }
 
     public Map<Address, Integer> getParticipants() {

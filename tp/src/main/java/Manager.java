@@ -21,7 +21,7 @@ public class Manager {
     private Log log;
 
 
-    public Manager(ManagedMessagingService ms, ExecutorService es, Address managerAddr) throws ExecutionException, InterruptedException {
+    public Manager(ManagedMessagingService ms, ExecutorService es) throws ExecutionException, InterruptedException {
         this.s = Serializer.builder()
                 .withTypes(
                         Msg.class,
@@ -29,13 +29,14 @@ public class Manager {
                         PutRequest.class,
                         GetRequest.class)
                 .build();
-        this.ms = ms;// NettyMessagingService.builder().withAddress(myAddr).build();
-        this.es = es;//Executors.newSingleThreadExecutor();
+        this.ms = ms;
+        this.es = es;
         this.transactionId = 0;
         this.participants = new HashMap<>();
         this.transactionsState = new HashMap<>();
         this.transactionsTimer = new HashMap<>();
         this.log = new Log("manager");
+
         this.loadLog();
 
 

@@ -17,24 +17,24 @@ public class ServerSkeleton {
     private Serializer s;
     private ManagedMessagingService ms;
     private ExecutorService es;
-    private Address managerAddr;
-    private Address forwarderAddr;
+    private Address managerAddress;
+    private Address forwarderAddress;
     private Map<Long, byte[]> pairs;
     private Map<Integer,  Map<Long, byte[]>> pairsVolatile;
     private String myAddress;
 
-    public ServerSkeleton(String myAddress, String managerAddr, String forwarderAddr, boolean forwarder, boolean manager) throws ExecutionException, InterruptedException {
+    public ServerSkeleton(String myAddress, String managerAddress, String forwarderAddress, boolean forwarder, boolean manager) throws ExecutionException, InterruptedException {
         this.log = new Log(myAddress);
         this.log.open(0);
         this.s = Serializer.builder()
                 .withTypes(
-                    Msg.class,
-                    AbstractMap.SimpleEntry.class)
+                        Msg.class,
+                        AbstractMap.SimpleEntry.class)
                 .build();
         this.ms = NettyMessagingService.builder().withAddress(Address.from(myAddress)).build();
         this.es = Executors.newSingleThreadExecutor();
-        this.managerAddr = Address.from(managerAddr);
-        this.forwarderAddr = Address.from(forwarderAddr);
+        this.managerAddress = Address.from(managerAddress);
+        this.forwarderAddress = Address.from(forwarderAddress);
         this.pairs = new HashMap<>();
         this.pairsVolatile = new HashMap<>();
         this.myAddress = myAddress;
@@ -72,25 +72,25 @@ public class ServerSkeleton {
         // Receive 2PC Commit message from manager
         this.ms.registerHandler("Manager-commit", (o, m) -> {
             synchronized(this.pairs){
-            Msg msg = this.s.decode(m);
+                Msg msg = this.s.decode(m);
 
-            int transactionId = (Integer) msg.getData();
+                int transactionId = (Integer) msg.getData();
 
-            // Commit Key-Value pairs to DB
-            Map<Long, byte[]> keysToPut = this.pairsVolatile.get(transactionId);
+                // Commit Key-Value pairs to DB
+                Map<Long, byte[]> keysToPut = this.pairsVolatile.get(transactionId);
                 if (keysToPut != null) {
                     this.pairs.putAll(keysToPut);
                 }
-            this.pairsVolatile.remove(transactionId);
+                this.pairsVolatile.remove(transactionId);
 
-            // Write Commit to log
-            LogEntry le = new LogEntry("Commit", transactionId);
-            this.log.append(le);
+                // Write Commit to log
+                LogEntry le = new LogEntry("Commit", transactionId);
+                this.log.append(le);
 
-            // Inform forwarder that the transaction is completed
-            if (keysToPut != null) {
-                this.ms.sendAsync(this.forwarderAddr, "Server-true", this.s.encode(msg));
-            }
+                // Inform forwarder that the transaction is completed
+                if (keysToPut != null) {
+                    this.ms.sendAsync(this.forwarderAddress, "Server-true", this.s.encode(msg));
+                }
             }
         }, this.es);
 
@@ -108,7 +108,7 @@ public class ServerSkeleton {
             this.log.append(le);
 
             // Inform forwarder that the transaction is completed
-            this.ms.sendAsync(this.forwarderAddr, "Server-false", this.s.encode(msg));
+            this.ms.sendAsync(this.forwarderAddress, "Server-false", this.s.encode(msg));
 
         }, this.es);
 
@@ -133,7 +133,7 @@ public class ServerSkeleton {
 
             // Tell Manager that the server is prepared
             msg = new Msg(response.getKey());
-            this.ms.sendAsync(this.managerAddr, "Server-prepared", this.s.encode(msg));
+            this.ms.sendAsync(this.managerAddress, "Server-prepared", this.s.encode(msg));
 
         }, this.es);
 
@@ -159,12 +159,12 @@ public class ServerSkeleton {
 
         // Create Forwarder
         if(forwarder){
-            Forwarder f = new Forwarder(this.ms, this.es, this.managerAddr, this.myAddress);
+            Forwarder f = new Forwarder(this.ms, this.es, this.managerAddress, this.myAddress);
         }
 
         // Create Forwarder
         if(manager){
-            Manager m = new Manager(this.ms, this.es, this.managerAddr);
+            Manager m = new Manager(this.ms, this.es);
         }
 
         this.ms.start().get();
@@ -175,15 +175,15 @@ public class ServerSkeleton {
         for(Map.Entry<Integer, String> e : transactions.entrySet()) {
             if (e.getValue().equals("Initialized")) {
                 Msg msg = new Msg(e.getKey());
-                this.ms.sendAsync(this.managerAddr, "Server-abort", this.s.encode(msg));
+                this.ms.sendAsync(this.managerAddress, "Server-abort", this.s.encode(msg));
             }
-           if (e.getValue().equals("Prepared")) {
-               Msg msg = new Msg(e.getKey());
-               this.ms.sendAsync(this.managerAddr, "Server-prepared", this.s.encode(msg));
-           }
-           if (e.getValue().equals("Abort")) {
-               this.pairsVolatile.remove(e.getKey());
-           }
+            if (e.getValue().equals("Prepared")) {
+                Msg msg = new Msg(e.getKey());
+                this.ms.sendAsync(this.managerAddress, "Server-prepared", this.s.encode(msg));
+            }
+            if (e.getValue().equals("Abort")) {
+                this.pairsVolatile.remove(e.getKey());
+            }
         }
     }
 
@@ -197,8 +197,8 @@ public class ServerSkeleton {
             LogEntry le = (LogEntry) r.next().entry();
             int transactionId = le.transactionId;
             if (le.entryType.equals("Initialized")) {
-               this.pairsVolatile.put(transactionId, le.pairs);
-               transactions.put(transactionId, "Initialized");
+                this.pairsVolatile.put(transactionId, le.pairs);
+                transactions.put(transactionId, "Initialized");
             }
             if (le.entryType.equals("Prepared")) {
                 transactions.put(transactionId, "Prepared");

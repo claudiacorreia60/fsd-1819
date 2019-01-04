@@ -15,16 +15,16 @@ import java.util.concurrent.Executors;
 
 public class ClientStub {
     private final ManagedMessagingService ms;
-    private final Address forwarderAddr;
+    private final Address forwarderAddress;
     private final Serializer s;
     private ExecutorService es;
     private Map<Integer, CompletableFuture<Boolean>> putRequests;
     private Map<Integer, CompletableFuture<Map<Long, byte[]>>> getRequests;
 
 
-    public ClientStub(String myAddr, String forwarderAddr) throws Exception {
-        this.forwarderAddr = Address.from(forwarderAddr);
-        ms = NettyMessagingService.builder().withAddress(Address.from(myAddr)).build();
+    public ClientStub(String myAddress, String forwarderAddress) throws Exception {
+        this.forwarderAddress = Address.from(forwarderAddress);
+        ms = NettyMessagingService.builder().withAddress(Address.from(myAddress)).build();
         s = Serializer.builder()
                 .withTypes(
                     Msg.class,
@@ -69,7 +69,7 @@ public class ClientStub {
         Msg request = new Msg(values);
 
         // Receives the transactionId for the given transaction
-        CompletableFuture<byte[]> r = ms.sendAndReceive(forwarderAddr, "Client-put", s.encode(request));
+        CompletableFuture<byte[]> r = ms.sendAndReceive(forwarderAddress, "Client-put", s.encode(request));
         Msg reply = s.decode(r.get());
         int transactionId = (Integer) reply.getData();
 
@@ -84,7 +84,7 @@ public class ClientStub {
         Msg request = new Msg(keys);
 
         // Receives the transactionId for the given transaction
-        CompletableFuture<byte[]> r = ms.sendAndReceive(forwarderAddr, "Client-get", s.encode(request));
+        CompletableFuture<byte[]> r = ms.sendAndReceive(forwarderAddress, "Client-get", s.encode(request));
         Msg reply = s.decode(r.get());
         int transactionId = (Integer) reply.getData();
 

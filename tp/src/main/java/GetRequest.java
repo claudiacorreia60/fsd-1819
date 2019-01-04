@@ -7,14 +7,14 @@ import java.util.stream.Collectors;
 
 public class GetRequest {
     private int transactionId;
-    private String clientAddr;
+    private String clientAddress;
     private Map<String, Map<Long, byte[]>> participants;
     private Map<String, Collection<Long>> requestedKeys;
     private boolean completed;
 
-    public GetRequest(int transactionId, String clientAddr, Map<Address, Map<Long, byte[]>> participants, Map<Address, Collection<Long>> requestedKeys) {
+    public GetRequest(int transactionId, String clientAddress, Map<Address, Map<Long, byte[]>> participants, Map<Address, Collection<Long>> requestedKeys) {
         this.transactionId = transactionId;
-        this.clientAddr = clientAddr;
+        this.clientAddress = clientAddress;
         Map<String, Map<Long, byte[]>> map = new HashMap<>();
         for (Map.Entry<Address, Map<Long, byte[]>> addressMapEntry : participants.entrySet()) {
             if (addressMapEntry.getValue() == null) {
@@ -41,11 +41,11 @@ public class GetRequest {
     }
 
     public String getClientAddr() {
-        return clientAddr;
+        return clientAddress;
     }
 
-    public void setClient(String clientAddr) {
-        this.clientAddr = clientAddr;
+    public void setClient(String clientAddress) {
+        this.clientAddress = clientAddress;
     }
 
     public Map<Address, Map<Long, byte[]>> getParticipants() {
