@@ -1,4 +1,5 @@
 import io.atomix.cluster.messaging.ManagedMessagingService;
+import io.atomix.cluster.messaging.MessagingService;
 import io.atomix.cluster.messaging.impl.NettyMessagingService;
 import io.atomix.storage.journal.SegmentedJournalReader;
 import io.atomix.utils.net.Address;
@@ -8,6 +9,7 @@ import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -156,6 +158,7 @@ public class ServerSkeleton {
             this.ms.sendAsync(o, "Server-get", this.s.encode(msg));
         }, this.es);
 
+        CompletableFuture<MessagingService> cf = this.ms.start();
 
         // Create Forwarder
         if(forwarder){
@@ -167,7 +170,7 @@ public class ServerSkeleton {
             Manager m = new Manager(this.ms, this.es);
         }
 
-        this.ms.start().get();
+        cf.get();
     }
 
     // Performs certain actions based on the state of a given transaction
