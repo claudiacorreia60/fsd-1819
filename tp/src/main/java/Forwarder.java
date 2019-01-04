@@ -358,6 +358,9 @@ public class Forwarder{
         // Handle GetRequests that are not completed
         for(GetRequest gr : grs.values()) {
 
+            // Recover last transactionId
+            this.getRequestId = gr.getTransactionId();
+
             if (! gr.isCompleted()) {
                 Map<Address, Map<Long, byte[]>> participants = gr.getParticipants();
 
