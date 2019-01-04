@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="f8ca147e-6b15-494c-936f-d89b39ff7e81" name="Default Changelist" comment="    Corrigido o facto de se o Forwarder morresse após pedir um transactionID ao manager mas antes de reencaminhar o put para os participantes, ao ser reiniciado ele não tinha como detetar que já tinha avisado os participantes da transação, logo esta nunca seria completa. Posto isto, foram acrescentadas duas variáveis de instancia na classe PutRequest, um Map&lt;String, Map&lt;Long, byte[]&gt;&gt; que mantem o registo de que chaves é que cada participante necessita de colocar e um booleano para manter registo de se a transação já foi encaminhada ou não. Foi alterada a ordem pela qual os eventos são guardados no log:&#10;    -&gt; Pede Id ao manager&#10;    -&gt; Cria PutRequest (com sent = false)&#10;    -&gt; Guarda no log&#10;    -&gt; Encaminha msg &quot;Forwarder-put&quot; para os participantes&#10;    -&gt; Atualiza PutRequest (com sent = true)&#10;    -&gt; Guarda no log&#10; Por conseguinte, foi atualizada a função loadLog/validateLog para lidar com esta recuperação.&#10; &#10; No Manager foi corrigido o facto de o valor do transactionId se perder quando este reinicia, causando uma inconsistência no identificador das transações. Foram alteradas as respetivas funções loadLog/validateLog para serem capazes de recuperar o transactionId">
+    <list default="true" id="f8ca147e-6b15-494c-936f-d89b39ff7e81" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/Forwarder.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/Forwarder.java" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/.clover/" />
     <ignored path="$PROJECT_DIR$/target/" />
@@ -33,11 +32,11 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/Forwarder.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="126">
-              <caret line="361" column="53" selection-start-line="361" selection-start-column="53" selection-end-line="361" selection-end-column="53" />
+            <state relative-caret-position="475">
+              <caret line="347" column="60" selection-start-line="347" selection-start-column="60" selection-end-line="347" selection-end-column="60" />
               <folding>
                 <element signature="imports" expanded="true" />
               </folding>
@@ -49,7 +48,7 @@
         <entry file="file://$PROJECT_DIR$/src/main/java/PutRequest.java">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="90">
-              <caret line="10" column="6" lean-forward="true" selection-start-line="10" selection-start-column="6" selection-end-line="10" selection-end-column="6" />
+              <caret line="10" column="6" selection-start-line="10" selection-start-column="6" selection-end-line="10" selection-end-column="6" />
               <folding>
                 <element signature="e#2143#2144#0" expanded="true" />
                 <element signature="e#2185#2186#0" expanded="true" />
@@ -65,7 +64,7 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/GetRequest.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="150">
+            <state relative-caret-position="15">
               <caret line="15" column="26" selection-start-line="15" selection-start-column="26" selection-end-line="15" selection-end-column="26" />
             </state>
           </provider>
@@ -74,17 +73,35 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/ServerSkeleton.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1200">
-              <caret line="92" column="12" selection-start-line="92" selection-start-column="12" selection-end-line="92" selection-end-column="12" />
+            <state relative-caret-position="2700">
+              <caret line="192" selection-start-line="192" selection-end-line="192" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/main/java/Server.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="30">
+              <caret line="2" column="135" selection-start-line="2" selection-start-column="135" selection-end-line="2" selection-end-column="135" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/main/java/ClientStub.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="210">
+              <caret line="26" column="36" selection-start-line="26" selection-start-column="36" selection-end-line="26" selection-end-column="36" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/main/java/Client.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-150">
-              <caret line="5" lean-forward="true" selection-start-line="5" selection-end-line="5" />
+            <state relative-caret-position="15">
+              <caret line="24" column="9" selection-start-line="24" selection-start-column="9" selection-end-line="24" selection-end-column="9" />
               <folding>
                 <element signature="imports" expanded="true" />
               </folding>
@@ -102,11 +119,13 @@
       <list>
         <option value="$PROJECT_DIR$/.idea/workspace.xml" />
         <option value="$PROJECT_DIR$/src/main/java/LogEntry.java" />
-        <option value="$PROJECT_DIR$/src/main/java/ServerSkeleton.java" />
         <option value="$PROJECT_DIR$/src/main/java/Manager.java" />
-        <option value="$PROJECT_DIR$/src/main/java/Client.java" />
         <option value="$PROJECT_DIR$/src/main/java/PutRequest.java" />
         <option value="$PROJECT_DIR$/src/main/java/Forwarder.java" />
+        <option value="$PROJECT_DIR$/src/main/java/ServerSkeleton.java" />
+        <option value="$PROJECT_DIR$/src/main/java/Server.java" />
+        <option value="$PROJECT_DIR$/src/main/java/ClientStub.java" />
+        <option value="$PROJECT_DIR$/src/main/java/Client.java" />
       </list>
     </option>
   </component>
@@ -181,7 +200,7 @@
     <configuration name="Client" type="Application" factoryName="Application">
       <option name="MAIN_CLASS_NAME" value="Client" />
       <module name="tp" />
-      <option name="PROGRAM_PARAMETERS" value="localhost:1235 localhost 1231" />
+      <option name="PROGRAM_PARAMETERS" value="localhost:1235 localhost:1231" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -189,7 +208,7 @@
     <configuration name="Server" type="Application" factoryName="Application" nameIsGenerated="true">
       <option name="MAIN_CLASS_NAME" value="Server" />
       <module name="tp" />
-      <option name="PROGRAM_PARAMETERS" value="localhost:1231 localhost:1231 true true" />
+      <option name="PROGRAM_PARAMETERS" value="localhost:1231 localhost:1231 localhost:1231 true true" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -211,7 +230,6 @@
   </component>
   <component name="ToolWindowManager">
     <frame x="1279" y="256" width="1367" height="768" extended-state="6" />
-    <editor active="true" />
     <layout>
       <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.2207105" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
@@ -222,7 +240,7 @@
       <window_info id="Favorites" order="6" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" weight="0.32938644" />
-      <window_info anchor="bottom" id="Run" order="2" weight="0.34510434" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.34510434" />
       <window_info anchor="bottom" id="Debug" order="3" weight="0.39957035" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
@@ -322,16 +340,11 @@
     <MESSAGE value="Pequenas alterações" />
     <MESSAGE value="    Corrigido o facto de se o Forwarder morresse após pedir um transactionID ao manager mas antes de reencaminhar o put para os participantes, ao ser reiniciado ele não tinha como detetar que já tinha avisado os participantes da transação, logo esta nunca seria completa. Posto isto, foram acrescentadas duas variáveis de instancia na classe PutRequest, um Map&lt;String, Map&lt;Long, byte[]&gt;&gt; que mantem o registo de que chaves é que cada participante necessita de colocar e um booleano para manter registo de se a transação já foi encaminhada ou não. Foi alterada a ordem pela qual os eventos são guardados no log:&#10;    -&gt; Pede Id ao manager&#10;    -&gt; Cria PutRequest (com sent = false)&#10;    -&gt; Guarda no log&#10;    -&gt; Encaminha msg &quot;Forwarder-put&quot; para os participantes&#10;    -&gt; Atualiza PutRequest (com sent = true)&#10;    -&gt; Guarda no log&#10; Por conseguinte, foi atualizada a função loadLog/validateLog para lidar com esta recuperação.&#10; &#10; No Manager foi corrigido o facto de o valor do transactionId se perder quando este reinicia, causando uma inconsistência no identificador das transações. Foram alteradas as respetivas funções loadLog/validateLog para irem atualizando o transactionId à medida que encontram entradas no log." />
     <MESSAGE value="Pequena correção" />
-    <option name="LAST_COMMIT_MESSAGE" value="Pequena correção" />
+    <MESSAGE value="O Forwarder também recupera o getId após um reinício." />
+    <MESSAGE value="Efetuadas alterações para Forwarder ser fixo e conhecido pelo ServerSkeleton. Com esta alteração, a estrutura pairsVolatile foi simplificada." />
+    <option name="LAST_COMMIT_MESSAGE" value="Efetuadas alterações para Forwarder ser fixo e conhecido pelo ServerSkeleton. Com esta alteração, a estrutura pairsVolatile foi simplificada." />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/src/main/java/ClientStub.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1110">
-          <caret line="86" column="4" selection-start-line="86" selection-start-column="4" selection-end-line="86" selection-end-column="4" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/Log.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="225">
@@ -349,27 +362,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/Server.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="75">
-          <caret line="5" selection-start-line="5" selection-end-line="5" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/GetRequest.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="150">
-          <caret line="15" column="26" selection-start-line="15" selection-start-column="26" selection-end-line="15" selection-end-column="26" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/ServerSkeleton.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1200">
-          <caret line="92" column="12" selection-start-line="92" selection-start-column="12" selection-end-line="92" selection-end-column="12" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/LogEntry.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="-630">
@@ -377,20 +369,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/Client.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-150">
-          <caret line="5" lean-forward="true" selection-start-line="5" selection-end-line="5" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/PutRequest.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="90">
-          <caret line="10" column="6" lean-forward="true" selection-start-line="10" selection-start-column="6" selection-end-line="10" selection-end-column="6" />
+          <caret line="10" column="6" selection-start-line="10" selection-start-column="6" selection-end-line="10" selection-end-column="6" />
           <folding>
             <element signature="e#2143#2144#0" expanded="true" />
             <element signature="e#2185#2186#0" expanded="true" />
@@ -411,8 +393,46 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/Forwarder.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="126">
-          <caret line="361" column="53" selection-start-line="361" selection-start-column="53" selection-end-line="361" selection-end-column="53" />
+        <state relative-caret-position="475">
+          <caret line="347" column="60" selection-start-line="347" selection-start-column="60" selection-end-line="347" selection-end-column="60" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/GetRequest.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="15">
+          <caret line="15" column="26" selection-start-line="15" selection-start-column="26" selection-end-line="15" selection-end-column="26" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/ServerSkeleton.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="2700">
+          <caret line="192" selection-start-line="192" selection-end-line="192" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/Server.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="30">
+          <caret line="2" column="135" selection-start-line="2" selection-start-column="135" selection-end-line="2" selection-end-column="135" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/ClientStub.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="210">
+          <caret line="26" column="36" selection-start-line="26" selection-start-column="36" selection-end-line="26" selection-end-column="36" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/Client.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="15">
+          <caret line="24" column="9" selection-start-line="24" selection-start-column="9" selection-end-line="24" selection-end-column="9" />
           <folding>
             <element signature="imports" expanded="true" />
           </folding>
