@@ -11,6 +11,8 @@
 ## Autores
 
 Ana Rodrigues   - A78763
+
 Armando Santos  - A77628
+
 Cláudia Correia - A77431
 
