@@ -6,7 +6,7 @@ import java.util.concurrent.CompletableFuture;
 
 public class Client {
     public static void main(String[] args) throws Exception {
-        ClientStub client = new ClientStub(args[0], args[1],Integer.parseInt(args[2]));
+        ClientStub client = new ClientStub(args[0], args[1]);
 
         Map<Long, byte[]> values = new HashMap();
         // Add values to the Map

@@ -336,7 +336,7 @@ public class Forwarder{
 
         // Handle PutRequests that are not completed
         for(PutRequest pr : prs.values()) {
-            if (! pr.isCompleted()) {
+            if (! pr.isCompleted() & pr.isSent()) {
                 Msg msg = new Msg(pr.getTransactionId());
                 this.ms.sendAsync(this.managerAddress, "Forwarder-isTransactionReady", this.s.encode(msg));
             }

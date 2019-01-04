@@ -18,11 +18,12 @@ public class ServerSkeleton {
     private ManagedMessagingService ms;
     private ExecutorService es;
     private Address managerAddr;
+    private Address forwarderAddr;
     private Map<Long, byte[]> pairs;
-    private Map<Integer, Map.Entry<Address, Map<Long, byte[]>>> pairsVolatile;
+    private Map<Integer,  Map<Long, byte[]>> pairsVolatile;
     private String myAddress;
 
-    public ServerSkeleton(String myAddress, String managerAddr, boolean forwarder, boolean manager) throws ExecutionException, InterruptedException {
+    public ServerSkeleton(String myAddress, String managerAddr, String forwarderAddr, boolean forwarder, boolean manager) throws ExecutionException, InterruptedException {
         this.log = new Log(myAddress);
         this.log.open(0);
         this.s = Serializer.builder()
@@ -33,6 +34,7 @@ public class ServerSkeleton {
         this.ms = NettyMessagingService.builder().withAddress(Address.from(myAddress)).build();
         this.es = Executors.newSingleThreadExecutor();
         this.managerAddr = Address.from(managerAddr);
+        this.forwarderAddr = Address.from(forwarderAddr);
         this.pairs = new HashMap<>();
         this.pairsVolatile = new HashMap<>();
         this.myAddress = myAddress;
@@ -74,10 +76,10 @@ public class ServerSkeleton {
             int transactionId = (Integer) msg.getData();
 
             // Commit Key-Value pairs to DB
-            Map.Entry<Address, Map<Long, byte[]>> keysToPut = this.pairsVolatile.get(transactionId);
+            Map<Long, byte[]> keysToPut = this.pairsVolatile.get(transactionId);
             synchronized(this.pairs){
                 if (keysToPut != null) {
-                    this.pairs.putAll(keysToPut.getValue());
+                    this.pairs.putAll(keysToPut);
                 }
             }
             this.pairsVolatile.remove(transactionId);
@@ -88,8 +90,7 @@ public class ServerSkeleton {
 
             // Inform forwarder that the transaction is completed
             if (keysToPut != null) {
-                Address forwarderAddr = keysToPut.getKey();
-                this.ms.sendAsync(forwarderAddr, "Server-true", this.s.encode(msg));
+                this.ms.sendAsync(this.forwarderAddr, "Server-true", this.s.encode(msg));
             }
 
         }, this.es);
@@ -100,7 +101,6 @@ public class ServerSkeleton {
 
             int transactionId = (Integer) msg.getData();
 
-            Address forwarderAddr = this.pairsVolatile.get(transactionId).getKey();
             // Delete Key-Value pairs from volatile DB
             this.pairsVolatile.remove(transactionId);
 
@@ -109,7 +109,7 @@ public class ServerSkeleton {
             this.log.append(le);
 
             // Inform forwarder that the transaction is completed
-            this.ms.sendAsync(forwarderAddr, "Server-false", this.s.encode(msg));
+            this.ms.sendAsync(this.forwarderAddr, "Server-false", this.s.encode(msg));
 
         }, this.es);
 
@@ -125,7 +125,7 @@ public class ServerSkeleton {
             this.log.append(le);
 
             // Add to volatile DB
-            Map.Entry<Address, Map<Long, byte[]>> newEntry = new AbstractMap.SimpleEntry<>(o, response.getValue());
+            Map<Long, byte[]> newEntry = response.getValue();
             this.pairsVolatile.put(response.getKey(), newEntry);
 
             // Write new state for this transaction to log
@@ -195,7 +195,7 @@ public class ServerSkeleton {
             LogEntry le = (LogEntry) r.next().entry();
             int transactionId = le.transactionId;
             if (le.entryType.equals("Initialized")) {
-               this.pairsVolatile.put(transactionId, new AbstractMap.SimpleEntry<>(Address.from(le.forwarderAddr), le.pairs));
+               this.pairsVolatile.put(transactionId, le.pairs);
                transactions.put(transactionId, "Initialized");
             }
             if (le.entryType.equals("Prepared")) {
@@ -203,7 +203,7 @@ public class ServerSkeleton {
             }
             if (le.entryType.equals("Commit")) {
                 transactions.put(transactionId, "Commit");
-                this.pairs.putAll(this.pairsVolatile.get(transactionId).getValue());
+                this.pairs.putAll(this.pairsVolatile.get(transactionId));
                 this.pairsVolatile.remove(transactionId);
             }
             if (le.entryType.equals("Abort")) {
