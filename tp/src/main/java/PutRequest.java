@@ -8,7 +8,7 @@ public class PutRequest {
     private int transactionId;
     private String clientAddr;
     private Map<String, Integer> participants; // Integer -> 0-SR, 1-S, 2-N
-    private Map<String, Map<Long, byte[]>> keysToPut; // Integer -> 0-SR, 1-S, 2-N
+    private Map<String, Map<Long, byte[]>> keysToPut;
     private boolean completed;
     private boolean sent;
 
