@@ -11,11 +11,11 @@ public class AbortTask extends TimerTask {
     private Serializer s;
     private ManagedMessagingService ms;
     private ExecutorService es;
-    private Map<Integer, Map<Address, Boolean>> participants; // <transaction ID, <participant, reply>>
+    private Map<Integer, Map<Address, Integer>> participants; // <transaction ID, <participant, reply>>
     private Map<Integer, Boolean> transactionsState; // <transaction ID, isTransactionCompleted>
     private Log log;
 
-    public AbortTask(int transactionId, Serializer s, ManagedMessagingService ms, ExecutorService es, Map<Integer, Map<Address, Boolean>> participants, Map<Integer, Boolean> transactionsState, Log log) {
+    public AbortTask(int transactionId, Serializer s, ManagedMessagingService ms, ExecutorService es, Map<Integer, Map<Address, Integer>> participants, Map<Integer, Boolean> transactionsState, Log log) {
         this.transactionId = transactionId;
         this.s = s;
         this.ms = ms;

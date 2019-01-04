@@ -15,7 +15,7 @@ public class Manager {
     private ManagedMessagingService ms;
     private ExecutorService es;
     private Integer transactionId;
-    private Map<Integer, Map<Address, Boolean>> participants; // <transaction ID, <participant, reply>>
+    private Map<Integer, Map<Address, Integer>> participants; // <transaction ID, <participant, reply>> | 0-SR, 1-T, 2-F
     private Map<Integer, Boolean> transactionsState;
     private Map<Integer, Timer> transactionsTimer;
     private Log log;
@@ -57,11 +57,11 @@ public class Manager {
 
             // Check if transaction is ready
             int transactionId = (Integer) msg.getData();
-            Map<Address, Boolean> participants = this.participants.get(transactionId);
+            Map<Address, Integer> participants = this.participants.get(transactionId);
 
             // If transaction was commited answer Forwarder immediately
             // Otherwise begin disaster recovery
-            if (participants.values().stream().allMatch(b -> b == true)) {
+            if (participants.values().stream().allMatch(b -> b == 1)) {
                 Map.Entry<Integer, Boolean> answer = new AbstractMap.SimpleEntry<>(transactionId, true);
                 msg = new Msg(answer);
                this.ms.sendAsync(o, "Manager-transactionIsReady", this.s.encode(msg));
@@ -98,11 +98,11 @@ public class Manager {
 
 
     public CompletableFuture<byte[]> beginTransactionHandler(Set<Address> participantServers, Address forwardererAddress) {
-        Map<Address, Boolean> participants = new HashMap<>();
+        Map<Address, Integer> participants = new HashMap<>();
 
         // Create participants list
         for(Address a : participantServers){
-            participants.put(a, false);
+            participants.put(a, 0);
         }
 
         CompletableFuture<byte[]> cf = null;
@@ -172,13 +172,13 @@ public class Manager {
     }
 
     public void preparedHandler(int transactionId, Address serverAddr) {
-        Map<Address, Boolean> serverResponses =  null;
+        Map<Address, Integer> serverResponses =  null;
 
         synchronized(this.participants){
             serverResponses = this.participants.get(transactionId);
 
             // Change server response
-            serverResponses.put(serverAddr, true);
+            serverResponses.put(serverAddr, 1);
             this.participants.put(transactionId, serverResponses);
         }
 
@@ -188,9 +188,14 @@ public class Manager {
 
         // Check if all servers are prepared
         boolean ready = true;
-        for(Map.Entry<Address, Boolean> e : serverResponses.entrySet()){
-            if(!e.getValue()){
+        for(Map.Entry<Address, Integer> e : serverResponses.entrySet()){
+            if(e.getValue() == 0){
                 ready = false;
+            }
+            if(e.getValue() == 2){
+                ready = false;
+                abort(transactionId);
+                break;
             }
         }
 
@@ -209,6 +214,7 @@ public class Manager {
             if(!isTransactionCompleted) {
                 // Send abort message to participant servers
                 for(Address a : this.participants.get(transactionId).keySet()){
+                    this.participants.get(transactionId).put(a, 2);
                     Msg msg = new Msg(transactionId);
                     ms.sendAsync(a, "Manager-abort", this.s.encode(msg));
                 }
@@ -250,6 +256,7 @@ public class Manager {
             }
             if(e.getValue().equals("Committed")){
                 for(Address a : this.participants.get(e.getKey()).keySet()){
+                    this.participants.get(transactionId).put(a, 1);
                     Msg msg = new Msg(e.getKey());
                     this.ms.sendAsync(a, "Manager-commit",this.s.encode(msg));
                 }
@@ -265,11 +272,11 @@ public class Manager {
             LogEntry le = (LogEntry) r.next().entry();
 
             if(le.entryType.equals("Initialized")){
-                Map<Address, Boolean> participantServers = new HashMap<>();
+                Map<Address, Integer> participantServers = new HashMap<>();
 
                 // Create participants list
                 for(String a : le.participants){
-                    participantServers.put(Address.from(a), false);
+                    participantServers.put(Address.from(a), 0);
                 }
 
                 // Store participant servers in participants Map

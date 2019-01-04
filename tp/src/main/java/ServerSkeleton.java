@@ -174,8 +174,11 @@ public class ServerSkeleton {
     // Performs certain actions based on the state of a given transaction
     private void validateLog(Map<Integer, String> transactions){
         for(Map.Entry<Integer, String> e : transactions.entrySet()) {
+            if (e.getValue().equals("Initialized")) {
+                Msg msg = new Msg(e.getKey());
+                this.ms.sendAsync(this.managerAddr, "Server-abort", this.s.encode(msg));
+            }
            if (e.getValue().equals("Prepared")) {
-               System.out.println("AQUI");
                Msg msg = new Msg(e.getKey());
                this.ms.sendAsync(this.managerAddr, "Server-prepared", this.s.encode(msg));
            }
