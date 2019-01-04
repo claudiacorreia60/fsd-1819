@@ -231,6 +231,10 @@ public class Manager {
 
     public void validateLog(Map<Integer, String> transactions){
         for(Map.Entry<Integer, String> e : transactions.entrySet()){
+
+            // Recover last transactionId
+            this.transactionId = e.getKey();
+
             if(e.getValue().equals("Initialized")){
                 for(Address a : this.participants.get(e.getKey()).keySet()){
                     Msg msg = new Msg(e.getKey());

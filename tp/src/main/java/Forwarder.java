@@ -183,7 +183,7 @@ public class Forwarder{
         return cf;
     }
 
-    private int beginTransaction(Map<Address, Map<Long, byte[]>> participantServers) throws ExecutionException, InterruptedException {
+    private int beginTransaction(Map<Address, Map<Long, byte[]>> participantServers, Address client) throws ExecutionException, InterruptedException {
         // Ask Manager to begin a new transaction
         Msg msg = new Msg(participantServers.keySet().stream()
                 .map(a -> a.toString())
@@ -191,12 +191,29 @@ public class Forwarder{
         CompletableFuture<byte[]> cf = this.ms.sendAndReceive(this.managerAddress, "Forwarder-begin", this.s.encode(msg));
         int transactionId = (Integer) ((Msg) this.s.decode(cf.get())).getData();
 
+        // Update putRequests Map
+        Map<Address, Integer> participants = new HashMap<>();
+        for(Address a : participantServers.keySet()){
+            participants.put(a, 0);
+        }
+
+        // Add PutRequest to the map and save it to the log
+        PutRequest pr = new PutRequest(transactionId, client.toString(), participants, participantServers);
+        putRequests.put(transactionId, pr);
+        LogEntry le = new LogEntry(pr);
+        this.log.append(le);
+
         // Inform participant servers of the transaction
         for(Map.Entry<Address, Map<Long, byte[]>> participant : participantServers.entrySet()){
             AbstractMap.SimpleEntry<Integer, Map<Long, byte[]>> data = new AbstractMap.SimpleEntry<>(transactionId, participant.getValue());
             msg = new Msg(data);
             this.ms.sendAsync(participant.getKey(), "Forwarder-put", this.s.encode(msg));
         }
+
+        // Save to log that this transaction was notified to all the participants
+        pr.setSent(true);
+        le = new LogEntry(pr);
+        this.log.append(le);
 
         return transactionId;
     }
@@ -223,20 +240,8 @@ public class Forwarder{
             participantServers.put(serverAddr, participantPairs);
         }
 
-        // Update putRequests Map
-        Map<Address, Integer> participants = new HashMap<>();
-        for(Address a : participantServers.keySet()){
-            participants.put(a, 0);
-        }
-
         // Begin transaction
-        int putId = beginTransaction(participantServers);
-
-        // Add PutRequest to the map and save it to the log
-        PutRequest pr = new PutRequest(putId, client.toString(), participants);
-        putRequests.put(putId, pr);
-        LogEntry le = new LogEntry(pr);
-        this.log.append(le);
+        int putId = beginTransaction(participantServers, client);
 
         Msg msg = new Msg(putId);
         return CompletableFuture.completedFuture(this.s.encode(msg));
@@ -334,6 +339,19 @@ public class Forwarder{
             if (! pr.isCompleted()) {
                 Msg msg = new Msg(pr.getTransactionId());
                 this.ms.sendAsync(this.managerAddress, "Forwarder-isTransactionReady", this.s.encode(msg));
+            }
+            if (! pr.isSent() ) {
+                // Inform participant servers of the transaction
+                for(Map.Entry<Address, Map<Long, byte[]>> participant : pr.getKeysToPut().entrySet()){
+                    AbstractMap.SimpleEntry<Integer, Map<Long, byte[]>> data = new AbstractMap.SimpleEntry<>(pr.getTransactionId(), participant.getValue());
+                    Msg msg = new Msg(data);
+                    this.ms.sendAsync(participant.getKey(), "Forwarder-put", this.s.encode(msg));
+                }
+
+                // Save to log that this transaction was notified to all the participants
+                pr.setSent(true);
+                LogEntry le = new LogEntry(pr);
+                this.log.append(le);
             }
         }
 
