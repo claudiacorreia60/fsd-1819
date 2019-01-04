@@ -3,6 +3,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 public class Client {
     public static void main(String[] args) throws Exception {
@@ -22,7 +23,6 @@ public class Client {
         keys.add((long) 3);
         keys.add((long) 4);
 
-        /*
         client.put(values).thenCompose((b) -> {
             System.out.println(b);
             try {
@@ -37,12 +37,13 @@ public class Client {
                 return new CompletableFuture<>();
             }
         });
-        */
 
+        /*
         client.get(keys).thenCompose((r) -> {
             System.out.println(r.keySet().toString());
             r.values().forEach(bytes -> System.out.println(new String(bytes)));
             return new CompletableFuture<>();
         });
+        */
     }
 }

@@ -155,9 +155,11 @@ public class Manager {
                 this.log.append(le);
 
                 // Send commit message to participant servers
-                for (Address a : this.participants.get(transactionId).keySet()) {
-                    Msg msg = new Msg(transactionId);
-                    ms.sendAsync(a, "Manager-commit", this.s.encode(msg));
+                synchronized (this.ms) {
+                    for (Address a : this.participants.get(transactionId).keySet()) {
+                        Msg msg = new Msg(transactionId);
+                        ms.sendAsync(a, "Manager-commit", this.s.encode(msg));
+                    }
                 }
 
                 // Set transaction as completed

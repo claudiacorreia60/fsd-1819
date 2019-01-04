@@ -71,17 +71,16 @@ public class ServerSkeleton {
 
         // Receive 2PC Commit message from manager
         this.ms.registerHandler("Manager-commit", (o, m) -> {
+            synchronized(this.pairs){
             Msg msg = this.s.decode(m);
 
             int transactionId = (Integer) msg.getData();
 
             // Commit Key-Value pairs to DB
             Map<Long, byte[]> keysToPut = this.pairsVolatile.get(transactionId);
-            synchronized(this.pairs){
                 if (keysToPut != null) {
                     this.pairs.putAll(keysToPut);
                 }
-            }
             this.pairsVolatile.remove(transactionId);
 
             // Write Commit to log
@@ -92,7 +91,7 @@ public class ServerSkeleton {
             if (keysToPut != null) {
                 this.ms.sendAsync(this.forwarderAddr, "Server-true", this.s.encode(msg));
             }
-
+            }
         }, this.es);
 
         // Receive 2PC Commit message from manager
